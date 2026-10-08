@@ -2048,6 +2048,26 @@ function Shell(props: ToolProps) {
   const pathFormatter = usePathFormatter()
   const ctx = use()
   const isRunning = createMemo(() => props.part.state.status === "running")
+  const [now, setNow] = createSignal(Date.now())
+  createEffect(() => {
+    if (!isRunning()) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+  const elapsed = createMemo(() => {
+    const state = props.part.state
+    if (state.status !== "running") return
+    const seconds = Math.max(0, Math.floor((now() - state.time.start) / 1000))
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    if (hours > 0) return `${hours}h${String(minutes).padStart(2, "0")}m`
+    if (minutes > 0) return `${minutes}m${String(seconds % 60).padStart(2, "0")}s`
+    return `${seconds}s`
+  })
+  const commandLabel = createMemo(() => {
+    const time = elapsed()
+    return time ? `${stringValue(props.input.command)} (${time})` : stringValue(props.input.command)
+  })
   const output = createMemo(() => stripAnsi(stringValue(props.metadata.output)?.trim() ?? ""))
   const [expanded, setExpanded] = createSignal(false)
   const maxLines = 10
@@ -2082,7 +2102,7 @@ function Shell(props: ToolProps) {
         >
           <box gap={1}>
             <Show when={isRunning()} fallback={<text fg={theme.text}>$ {stringValue(props.input.command)}</text>}>
-              <Spinner color={theme.text}>{stringValue(props.input.command)}</Spinner>
+              <Spinner color={theme.text}>{commandLabel()}</Spinner>
             </Show>
             <Show when={output()}>
               <text fg={theme.text}>{limited()}</text>
